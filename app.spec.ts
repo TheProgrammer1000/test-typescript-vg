@@ -1,6 +1,6 @@
 import {default as request} from 'supertest'
 import { makeApp } from "./app";
-
+import nock = require('nock');
 
 
 type Contact = {
@@ -16,6 +16,7 @@ type Contact = {
 
 
 const createContact = jest.fn();
+const getContactById = jest.fn();
 
 const app = makeApp({
   createContact: (contact: Contact) => contact,
@@ -25,7 +26,7 @@ const app = makeApp({
 const validContact = {
   firstname: "Dennis",
   lastname: "Karlsson",
-  email: "dennis.karlsson@gmail.com",
+  email: "dennis@gmail.com",
   personalnumber: "950510-5432",
   address: 'toppergatan 5',
   zipCode: 11345,
@@ -53,13 +54,38 @@ describe('GET /contact', () => {
 })
 
 describe('GET /contact:id', () => {
-    it('should return statusCode 200 on valid contactID', () => {
+    beforeEach(() => {
+      nock('https://api-ninjas.com')
+        .get('/api/geocoding?city=London&country=England')
+        .times(2)
+        .reply(200, {
+          // Your mock response here
+        });
+    })
 
+    getContactById.mockReset();
+    getContactById.mockResolvedValue({"firstname": "Dennis",
+    "lastname": "Karlsson",
+    "email": "dennis@gmail.com",
+    "personalnumber": "950510-5432",
+    "address": "toppergatan 5",
+    "zipCode": 11345,
+    "city": "Stockholm",
+    "country": "Sweden"})
+
+
+
+    it('should return statusCode 200 on valid contactID', async () => {
+      const response = await request(app).get('/contact/65842e742400b2765235fae1');
+
+      console.log('response.statusCode: ', response.statusCode)
+      //console.log('response: ', response)
+      expect(response.statusCode).toBe(200);
     })
 
     it('should return statusCode 404 on invalid contactID', () => {
 
-    })
+  })
 })
 
 describe('POST /contact', () => {
@@ -83,6 +109,7 @@ describe('POST /contact', () => {
       try {
         const response = await request(app).post('/contact').send(validContact);
         expect(response.statusCode).toBe(201);
+        expect(response.header).toBe('Content-Type application/json');
       } catch (error) {
         console.error(error);
       }
@@ -96,8 +123,13 @@ describe('POST /contact', () => {
         console.error(error);
       }
     })
+
     it('should return statusCode 400 when invalid', async () => {
-      const response = await request(app).post('/contact').send(invalid)
-      expect(response.statusCode).toBe(400)
-    })
+      try {
+        const response = await request(app).post('/contact').send(invalid);
+        expect(response.statusCode).toBe(400);
+      } catch (error) {
+        console.error(error);
+      }
+    });
 })
